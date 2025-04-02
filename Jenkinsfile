@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     stages {
         stage('Cleaning Workspace') {
             steps {
@@ -42,5 +41,15 @@ pipeline {
             ]
         )
     }}
+    stage('Docker Build and Push'){
+        steps{
+            sh '''
+                  aws ecr get-login-password --region us-east-1 | \
+                    docker login --username AWS --password-stdin 148761656198.dkr.ecr.us-east-1.amazonaws.com
+                  docker build -t 148761656198.dkr.ecr.us-east-1.amazonaws.com/13v13reddy/test:${BUILD_NUMBER} .
+                  docker push 148761656198.dkr.ecr.us-east-1.amazonaws.com/13v13reddy/test:${BUILD_NUMBER}
+               '''
+        }
+    }
 }
 }
