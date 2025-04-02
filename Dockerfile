@@ -1,24 +1,11 @@
-# Stage 1: Build the application
-FROM maven:3.8.7-openjdk-18-slim AS build
+# Use an official OpenJDK 17 runtime as a parent image
+FROM openjdk:17-jdk-slim
 
-# Set the working directory in the build container
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy the Maven project files
-COPY pom.xml .
-COPY src ./src
-
-# Build the application
-RUN mvn clean package -DskipTests
-
-# Stage 2: Create the runtime image
-FROM openjdk:18-jdk-slim
-
-# Set the working directory in the runtime container
-WORKDIR /app
-
-# Copy the built artifact from the build stage
-COPY --from=build /app/target/*.jar app.jar
+# Copy the generated artifact (JAR file) into the container
+COPY target/*.jar app.jar
 
 # Expose the application port
 EXPOSE 8080
