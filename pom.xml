@@ -65,7 +65,7 @@
     <distributionManagement>
         <snapshotRepository>
             <id>devops</id>
-            <url>http://98.82.0.245:8081/nexus/content/repositories/devops</url>
+            <url>http://44.201.84.239:8081/nexus/content/repositories/devops</url>
         </snapshotRepository>
     </distributionManagement>
 </project>
