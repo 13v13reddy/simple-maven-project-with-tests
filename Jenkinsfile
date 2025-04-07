@@ -1,55 +1,52 @@
 pipeline {
-    agent any
-    stages {
-        stage('Cleaning Workspace') {
-            steps {
-                cleanWs()
-            }
-        }
-        stage('Git Checkout'){
-            steps{
-                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/13v13reddy/simple-maven-project-with-tests.git']])
-            }
-        }
-        stage('Maven Build'){
-            steps{
-                sh '''
-                    mvn clean
-                    mvn package -DskipTests
-                    '''
-            }
-        }
-        stage('Archive Artifacts'){
-            steps{
-                archiveArtifacts artifacts: 'target/*.jar', followSymlinks: false
-            }
-        }
-        stage('Upload Artifacts') {
-    steps {
-        nexusArtifactUploader(
-            nexusVersion: 'nexus2',
-            protocol: 'http',
-            nexusUrl: '98.82.0.245:8081/nexus',
-            groupId: 'test',
-            version: '1.0',
-            repository: 'devops',
-            credentialsId: 'nexusCred',
-            artifacts: [
-                [artifactId: 'simple-maven-project-with-tests',
-                 type: 'jar',
-                 file: 'target/simple-maven-project-with-tests-1.0.jar']
-            ]
-        )
-    }}
-    stage('Docker Build and Push'){
-        steps{
-            sh '''
-                  aws ecr get-login-password --region us-east-1 | \
-                    docker login --username AWS --password-stdin 148761656198.dkr.ecr.us-east-1.amazonaws.com
-                  docker build -t 148761656198.dkr.ecr.us-east-1.amazonaws.com/13v13reddy/test:${BUILD_NUMBER} .
-                  docker push 148761656198.dkr.ecr.us-east-1.amazonaws.com/13v13reddy/test:${BUILD_NUMBER}
-               '''
-        }
+  agent any
+
+  environment {
+    AWS_REGION    = 'us-west-1'
+    CLUSTER_NAME  = 'Prod-EKS'   // Change per environment
+    IMAGE_NAME    = '13v13reddy/testrepo'
+    DOCKER_CREDS  = credentials('docker-hub-credentials') // Jenkins Credentials ID
+    AWS_CREDS     = credentials('awsCred')            // Jenkins Credentials ID
+  }
+
+  stages {
+    stage('Checkout Code') {
+      steps {
+        git branch: 'master', url: 'https://github.com/13v13reddy/simple-maven-project-with-tests.git'
+      }
     }
-}
+
+    stage('Build Java App') {
+      steps {
+        sh 'mvn clean package -DskipTests'
+      }
+    }
+
+    stage('Docker Build & Push') {
+      steps {
+        sh '''
+          echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin
+          docker buildx build --platform linux/amd64 -t $IMAGE_NAME:$BUILD_NUMBER .
+          docker push $IMAGE_NAME:$BUILD_NUMBER
+        '''
+      }
+    }
+
+    stage('Configure AWS CLI') {
+      steps {
+        withAWS(credentials: 'awsCred', region: 'us-west-1') {
+        sh '''
+        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+      '''}
+      }
+    }
+
+    stage('Deploy to EKS') {
+      steps {
+        sh '''
+          kubectl set image deployment/java-app testrepo=$IMAGE_NAME:$BUILD_NUMBER --namespace=default
+        '''
+      }
+    }
+  }
 }
